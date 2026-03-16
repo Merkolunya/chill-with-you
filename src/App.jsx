@@ -268,7 +268,13 @@ export default function App(){
   const[storyOpen,setStoryOpen]=useState(false);
   const[lineIdx,setLineIdx]=useState(0);
   const[workLog,setWorkLog]=useLocalState("workLog",{});
+  // dailyLog: { "2026-03-16": { sessions:2, tasksDone:3, habitsDone:2 }, ... }
+  const[dailyLog,setDailyLog]=useLocalState("dailyLog",{});
   const[mood,setMood]=useState("idle");
+  const saveDailyField=(field,value)=>{
+    const dk=new Date().toISOString().split("T")[0];
+    setDailyLog(l=>({...l,[dk]:{...(l[dk]||{sessions:0,tasksDone:0,habitsDone:0}),[field]:value}}));
+  };
 
   const[userName,setUserName]=useLocalState("userName","User");
   const[notifSound,setNotifSound]=useLocalState("notifSound",true);
@@ -310,7 +316,7 @@ export default function App(){
     else if(time===0&&running){
       setRunning(false);
       if(notifSound)playTimerSound(timerSound);
-      if(mode==="work"){setXp(x=>x+workMin*2);setSessions(s=>s+1);const d=new Date().toISOString().split("T")[0];setWorkLog(l=>({...l,[d]:(l[d]||0)+workMin}));setMood("happy");setMode("break");setTime(breakMin*60);}
+      if(mode==="work"){setXp(x=>x+workMin*2);setSessions(s=>{const nv=s+1;saveDailyField("sessions",nv);return nv;});const d=new Date().toISOString().split("T")[0];setWorkLog(l=>({...l,[d]:(l[d]||0)+workMin}));setMood("happy");setMode("break");setTime(breakMin*60);}
       else{setMode("work");setTime(workMin*60);setMood("idle");}
     }
     return()=>clearInterval(timerRef.current);
@@ -328,38 +334,66 @@ export default function App(){
   const addTodo=()=>{if(!newTodo.trim())return;setTodos([...todos,{id:Date.now(),text:newTodo.trim(),done:false}]);setNewTodo("");setShowAddTask(false);};
   const addHabit=()=>{if(!newHabit.trim())return;setHabits([...habits,{id:Date.now(),name:newHabit.trim(),icon:"✨",done:false}]);setNewHabit("");setShowAddHabit(false);};
 
-  // Task toggle with XP bind/unbind
+  // Task toggle with XP bind/unbind + dailyLog
   const toggleTask=(id)=>{
-    setTodos(todos.map(t=>{
-      if(t.id===id){
-        if(!t.done){setXp(x=>x+10);setTasksDoneToday(v=>v+1);setMood("happy");}
-        else{setXp(x=>Math.max(0,x-10));setTasksDoneToday(v=>Math.max(0,v-1));}
-        return{...t,done:!t.done};
-      }return t;
-    }));
+    setTodos(prev=>{
+      const next=prev.map(t=>{
+        if(t.id===id){
+          if(!t.done){setXp(x=>x+10);setTasksDoneToday(v=>{const nv=v+1;saveDailyField("tasksDone",nv);return nv;});setMood("happy");}
+          else{setXp(x=>Math.max(0,x-10));setTasksDoneToday(v=>{const nv=Math.max(0,v-1);saveDailyField("tasksDone",nv);return nv;});}
+          return{...t,done:!t.done};
+        }return t;
+      });
+      return next;
+    });
   };
-  // Habit toggle with XP bind/unbind
+  // Habit toggle with XP bind/unbind + dailyLog
   const toggleHabit=(id)=>{
-    setHabits(habits.map(h=>{
-      if(h.id===id){
-        if(!h.done)setXp(x=>x+15); else setXp(x=>Math.max(0,x-15));
-        return{...h,done:!h.done};
-      }return h;
-    }));
+    setHabits(prev=>{
+      const next=prev.map(h=>{
+        if(h.id===id){
+          if(!h.done){setXp(x=>x+15);} else{setXp(x=>Math.max(0,x-15));}
+          return{...h,done:!h.done};
+        }return h;
+      });
+      const doneCount=next.filter(h=>h.done).length;
+      saveDailyField("habitsDone",doneCount);
+      return next;
+    });
   };
 
-  // Stats
+  // Stats — compute from workLog + dailyLog per period
   const todayKey=now.toISOString().split("T")[0];
+  const getDaysInPeriod=()=>{
+    if(statsPeriod==="Day")return[todayKey];
+    const days=[];
+    const count=statsPeriod==="Week"?7:statsPeriod==="Month"?30:999;
+    for(let i=0;i<count;i++){const d=new Date(now);d.setDate(d.getDate()-i);days.push(d.toISOString().split("T")[0]);}
+    return days;
+  };
+  const periodDays=getDaysInPeriod();
   const getStatsData=()=>{
-    const entries=Object.entries(workLog).sort();
+    const entries=Object.entries(workLog).filter(([k])=>periodDays.includes(k)).sort();
     if(entries.length===0)return[];
-    if(statsPeriod==="Day")return entries.filter(([k])=>k===todayKey).map(([k,v])=>({day:"Today",focus:v}));
-    if(statsPeriod==="Week")return entries.slice(-7).map(([k,v])=>({day:k.slice(5),focus:v}));
-    if(statsPeriod==="Month")return entries.slice(-30).map(([k,v])=>({day:k.slice(8),focus:v}));
-    return entries.map(([k,v])=>({day:k.slice(5),focus:v}));
+    if(statsPeriod==="Day")return entries.map(([k,v])=>({day:"Today",focus:v}));
+    return entries.map(([k,v])=>({day:statsPeriod==="Month"?k.slice(8):k.slice(5),focus:v}));
   };
   const statsData=getStatsData();
   const maxFocus=statsData.length>0?Math.max(...statsData.map(d=>d.focus),1):1;
+
+  // Aggregated stats from dailyLog for chosen period
+  const periodStats=useMemo(()=>{
+    let totalFocus=0,totalSessions=0,totalTasks=0,totalHabits=0;
+    periodDays.forEach(dk=>{
+      totalFocus+=(workLog[dk]||0);
+      const dl=dailyLog[dk]||{};
+      totalSessions+=(dl.sessions||0);
+      totalTasks+=(dl.tasksDone||0);
+      totalHabits+=(dl.habitsDone||0);
+    });
+    return{totalFocus,totalSessions,totalTasks,totalHabits,
+      focusH:Math.floor(totalFocus/60),focusM:totalFocus%60};
+  },[periodDays,workLog,dailyLog]);
 
   const getHeatReal=(w,d)=>{const dt=new Date(now);dt.setDate(dt.getDate()-((3-w)*7+(6-d)));const dk=dt.toISOString().split("T")[0];return Math.min((workLog[dk]||0)/60,1);};
 
@@ -488,7 +522,7 @@ export default function App(){
       {nav==="Statistics"&&<div style={{padding:"18px 24px 24px",maxWidth:1200,margin:"0 auto",animation:"fadeUp 0.3s ease"}}>
         <div style={{display:"flex",gap:6,marginBottom:20}}>{["Day","Week","Month","All Time"].map(p=><button key={p} onClick={()=>setStatsPeriod(p)} style={{padding:"7px 18px",borderRadius:10,fontSize:12,fontWeight:600,background:statsPeriod===p?A:"rgba(255,255,255,0.04)",border:statsPeriod===p?`1.5px solid ${A}`:"1.5px solid rgba(255,255,255,0.06)",color:statsPeriod===p?"#fff":"rgba(255,255,255,0.45)"}}>{p}</button>)}</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:18}}>
-          {[{l:"Focus",v:`${focusH}h ${focusM}m`,i:"⏱"},{l:"Sessions",v:sessions,i:"🔄"},{l:"Tasks",v:completedTasks,i:"✅"},{l:"Habits",v:habits.filter(h=>h.done).length,i:"🎯"}].map((s,i)=>
+          {[{l:"Focus",v:`${periodStats.focusH}h ${periodStats.focusM}m`,i:"⏱"},{l:"Sessions",v:periodStats.totalSessions,i:"🔄"},{l:"Tasks",v:periodStats.totalTasks,i:"✅"},{l:"Habits",v:periodStats.totalHabits,i:"🎯"}].map((s,i)=>
             <Card key={i} bg={T.card} style={{textAlign:"center",padding:"18px 14px"}}><div style={{fontSize:26,marginBottom:6}}>{s.i}</div><div style={{fontSize:26,fontWeight:700,marginBottom:3}}>{s.v}</div><div style={{fontSize:12,opacity:0.4}}>{s.l}</div></Card>
           )}
         </div>
