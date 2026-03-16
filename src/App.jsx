@@ -534,9 +534,7 @@ export default function App(){
         {/* Music + Tasks */}
         <div style={{display:"flex",gap:14}}>
           <Card bg={T.card} style={{flex:1,display:"flex",flexDirection:"column"}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}><span style={{fontSize:16,fontWeight:700}}>Music</span>
-              <button onClick={()=>setShowAmb(!showAmb)} style={{width:26,height:26,borderRadius:7,background:`${A}20`,border:`1px solid ${A}33`,color:A,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center"}}>{showAmb?"✕":"🌿"}</button>
-            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}><span style={{fontSize:16,fontWeight:700}}>Music</span></div>
             <div style={{fontSize:13,fontWeight:500}}>{track.name}</div>
             <div style={{fontSize:11,opacity:0.4,marginBottom:12}}>{track.artist} · {track.bpm}bpm · {track.wave}</div>
             <div style={{height:3,borderRadius:2,background:"rgba(255,255,255,0.08)",marginBottom:14,overflow:"hidden"}}><div style={{height:"100%",width:`${mProg}%`,background:`linear-gradient(90deg,${A},${A}88)`,transition:"width 0.3s"}}/></div>
@@ -548,7 +546,7 @@ export default function App(){
             {playing&&<div style={{textAlign:"center",marginBottom:8,fontSize:10,color:A,opacity:0.7}}>♪ กำลังเล่น Lo-Fi...</div>}
             {/* Track list — always visible */}
             <div style={{maxHeight:200,overflowY:"auto",borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:8}}>{TRACKS.map(t=><div key={t.id} onClick={()=>doChangeTrack(t)} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",borderRadius:6,cursor:"pointer",background:track.id===t.id?`${A}15`:"transparent",fontSize:12,marginBottom:2,transition:"background 0.15s"}}><span style={{opacity:track.id===t.id?1:0.4,fontSize:11}}>{track.id===t.id&&playing?"▶":"♪"}</span><span style={{flex:1,opacity:track.id===t.id?1:0.6}}>{t.name}</span><span style={{opacity:0.3,fontSize:10}}>{t.bpm}bpm</span></div>)}</div>
-            {showAmb&&<div style={{marginTop:10}}><div style={{fontSize:11,opacity:0.4,marginBottom:6}}>Ambient Sounds</div><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:5}}>{AMBIENT_DEFS.map(a=><button key={a.id} onClick={()=>toggleAmbient(a)} style={{padding:"6px 3px",borderRadius:8,fontSize:11,background:ambients[a.id]?`${A}20`:"rgba(255,255,255,0.03)",border:ambients[a.id]?`1px solid ${A}40`:"1px solid rgba(255,255,255,0.06)",color:T.text,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:14}}>{a.icon}</span>{a.name}{ambients[a.id]&&<span style={{fontSize:8,color:A}}>ON</span>}</button>)}</div></div>}
+            <div style={{marginTop:10}}><div style={{fontSize:11,opacity:0.4,marginBottom:6}}>Ambient Sounds</div><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:5}}>{AMBIENT_DEFS.map(a=><button key={a.id} onClick={()=>toggleAmbient(a)} style={{padding:"6px 3px",borderRadius:8,fontSize:11,background:ambients[a.id]?`${A}20`:"rgba(255,255,255,0.03)",border:ambients[a.id]?`1px solid ${A}40`:"1px solid rgba(255,255,255,0.06)",color:T.text,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:14}}>{a.icon}</span>{a.name}{ambients[a.id]&&<span style={{fontSize:8,color:A}}>ON</span>}</button>)}</div></div>
           </Card>
           <Card bg={T.card} style={{flex:1,display:"flex",flexDirection:"column"}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}><span style={{fontSize:16,fontWeight:700}}>Task</span><button onClick={()=>setShowAddTask(!showAddTask)} style={{width:26,height:26,borderRadius:7,background:`${A}20`,border:`1px solid ${A}33`,color:A,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button></div>
@@ -598,31 +596,6 @@ export default function App(){
                 </div>;
               })}
             </div>
-            {/* Habit frequency mini-chart — all-time breakdown */}
-            {(()=>{
-              const allHabitCounts={};
-              Object.values(dailyLog).forEach(dl=>{
-                const hd=dl.habitDetail||{};
-                Object.entries(hd).forEach(([name,count])=>{allHabitCounts[name]=(allHabitCounts[name]||0)+count;});
-              });
-              const sorted=Object.entries(allHabitCounts).sort((a,b)=>b[1]-a[1]);
-              const maxC=sorted.length>0?sorted[0][1]:1;
-              if(sorted.length===0) return <div style={{marginTop:10,fontSize:10,opacity:0.25,textAlign:"center"}}>ติ๊ก habit แล้วจะเห็นสถิติตรงนี้</div>;
-              return <div style={{marginTop:12,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10}}>
-                <div style={{fontSize:11,fontWeight:600,opacity:0.5,marginBottom:8}}>📊 สถิติสะสม</div>
-                {sorted.map(([name,count],i)=>(
-                  <div key={name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                    <span style={{fontSize:11,minWidth:80,opacity:0.7,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</span>
-                    <div style={{flex:1,height:14,borderRadius:4,background:"rgba(255,255,255,0.04)",overflow:"hidden"}}>
-                      <div style={{height:"100%",borderRadius:4,width:`${(count/maxC)*100}%`,background:i===0?`${A}`:`${A}${i===1?"88":"44"}`,display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:4,transition:"width 0.5s"}}>
-                        {count>0&&<span style={{fontSize:9,fontWeight:700,color:"#fff"}}>{count}×</span>}
-                      </div>
-                    </div>
-                    {i===0&&<span style={{fontSize:10}}>🏆</span>}
-                  </div>
-                ))}
-              </div>;
-            })()}
           </Card>
           <Card bg={T.card} style={{flex:1}}>
             <div style={{fontSize:16,fontWeight:700,marginBottom:14}}>Progress</div>
