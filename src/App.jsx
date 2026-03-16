@@ -372,14 +372,6 @@ export default function App(){
     return days;
   };
   const periodDays=getDaysInPeriod();
-  const getStatsData=()=>{
-    const entries=Object.entries(workLog).filter(([k])=>periodDays.includes(k)).sort();
-    if(entries.length===0)return[];
-    if(statsPeriod==="Day")return entries.map(([k,v])=>({day:"Today",focus:v}));
-    return entries.map(([k,v])=>({day:statsPeriod==="Month"?k.slice(8):k.slice(5),focus:v}));
-  };
-  const statsData=getStatsData();
-  const maxFocus=statsData.length>0?Math.max(...statsData.map(d=>d.focus),1):1;
 
   // Aggregated stats from dailyLog for chosen period
   const periodStats=useMemo(()=>{
@@ -394,6 +386,22 @@ export default function App(){
     return{totalFocus,totalSessions,totalTasks,totalHabits,
       focusH:Math.floor(totalFocus/60),focusM:totalFocus%60};
   },[periodDays,workLog,dailyLog]);
+
+  // Per-day breakdown for charts (all days that have ANY data in period)
+  const dailyChartData=useMemo(()=>{
+    const sorted=[...periodDays].sort();
+    return sorted.map(dk=>{
+      const dl=dailyLog[dk]||{};
+      return{
+        day:statsPeriod==="Day"?"Today":statsPeriod==="Month"?dk.slice(8):dk.slice(5),
+        focus:workLog[dk]||0,
+        sessions:dl.sessions||0,
+        tasks:dl.tasksDone||0,
+        habits:dl.habitsDone||0,
+      };
+    }).filter(d=>d.focus>0||d.sessions>0||d.tasks>0||d.habits>0);
+  },[periodDays,workLog,dailyLog,statsPeriod]);
+  const hasAnyData=dailyChartData.length>0;
 
   const getHeatReal=(w,d)=>{const dt=new Date(now);dt.setDate(dt.getDate()-((3-w)*7+(6-d)));const dk=dt.toISOString().split("T")[0];return Math.min((workLog[dk]||0)/60,1);};
 
@@ -519,19 +527,75 @@ export default function App(){
       {/* STATISTICS */}
       {nav==="Statistics"&&<div style={{padding:"18px 24px 24px",maxWidth:1200,margin:"0 auto",animation:"fadeUp 0.3s ease"}}>
         <div style={{display:"flex",gap:6,marginBottom:20}}>{["Day","Week","Month","All Time"].map(p=><button key={p} onClick={()=>setStatsPeriod(p)} style={{padding:"7px 18px",borderRadius:10,fontSize:12,fontWeight:600,background:statsPeriod===p?A:"rgba(255,255,255,0.04)",border:statsPeriod===p?`1.5px solid ${A}`:"1.5px solid rgba(255,255,255,0.06)",color:statsPeriod===p?"#fff":"rgba(255,255,255,0.45)"}}>{p}</button>)}</div>
+        {/* Summary cards */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:18}}>
-          {[{l:"Focus",v:`${periodStats.focusH}h ${periodStats.focusM}m`,i:"⏱"},{l:"Sessions",v:periodStats.totalSessions,i:"🔄"},{l:"Tasks",v:periodStats.totalTasks,i:"✅"},{l:"Habits",v:periodStats.totalHabits,i:"🎯"}].map((s,i)=>
-            <Card key={i} bg={T.card} style={{textAlign:"center",padding:"18px 14px"}}><div style={{fontSize:26,marginBottom:6}}>{s.i}</div><div style={{fontSize:26,fontWeight:700,marginBottom:3}}>{s.v}</div><div style={{fontSize:12,opacity:0.4}}>{s.l}</div></Card>
+          {[{l:"Focus",v:`${periodStats.focusH}h ${periodStats.focusM}m`,i:"⏱",color:A},{l:"Sessions",v:periodStats.totalSessions,i:"🔄",color:"#6366f1"},{l:"Tasks",v:periodStats.totalTasks,i:"✅",color:"#10b981"},{l:"Habits",v:periodStats.totalHabits,i:"🎯",color:"#f59e0b"}].map((s,i)=>
+            <Card key={i} bg={T.card} style={{textAlign:"center",padding:"18px 14px"}}><div style={{fontSize:26,marginBottom:6}}>{s.i}</div><div style={{fontSize:26,fontWeight:700,marginBottom:3,color:s.color}}>{s.v}</div><div style={{fontSize:12,opacity:0.4}}>{s.l}</div></Card>
           )}
         </div>
-        {statsData.length>0?<Card bg={T.card}><div style={{display:"flex",justifyContent:"space-between",marginBottom:18}}><span style={{fontSize:16,fontWeight:700}}>Focus Time</span><span style={{fontSize:11,opacity:0.4}}>{statsPeriod}</span></div>
-          <div style={{display:"flex",alignItems:"flex-end",gap:Math.max(4,Math.floor(40/statsData.length)),height:160,paddingBottom:24}}>
-            {statsData.map((d,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5,minWidth:0}}>
-              <div style={{width:"100%",borderRadius:7,height:`${Math.max(4,(d.focus/maxFocus)*130)}px`,background:`linear-gradient(180deg,${A},${A}44)`,position:"relative"}}><div style={{position:"absolute",top:-18,width:"100%",textAlign:"center",fontSize:10,opacity:0.5}}>{d.focus}m</div></div>
-              <span style={{fontSize:9,opacity:0.4,overflow:"hidden",whiteSpace:"nowrap",maxWidth:"100%"}}>{d.day}</span>
-            </div>)}
+
+        {hasAnyData?<>
+          {/* 4 Charts in 2x2 grid */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+            {[
+              {key:"focus",label:"Focus Time",unit:"m",color:A,getData:d=>d.focus},
+              {key:"sessions",label:"Sessions",unit:"",color:"#6366f1",getData:d=>d.sessions},
+              {key:"tasks",label:"Tasks Done",unit:"",color:"#10b981",getData:d=>d.tasks},
+              {key:"habits",label:"Habits Done",unit:"",color:"#f59e0b",getData:d=>d.habits},
+            ].map(chart=>{
+              const vals=dailyChartData.map(chart.getData);
+              const mx=Math.max(...vals,1);
+              return <Card key={chart.key} bg={T.card}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                  <span style={{fontSize:15,fontWeight:700}}>{chart.label}</span>
+                  <span style={{fontSize:20,opacity:0.5,padding:"2px 8px",borderRadius:8,background:`${chart.color}15`,color:chart.color,fontWeight:700}}>{vals.reduce((a,b)=>a+b,0)}{chart.unit}</span>
+                </div>
+                <div style={{display:"flex",alignItems:"flex-end",gap:Math.max(3,Math.floor(30/dailyChartData.length)),height:120,paddingBottom:22}}>
+                  {dailyChartData.map((d,i)=>{
+                    const v=chart.getData(d);
+                    return <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,minWidth:0}}>
+                      <div style={{width:"100%",borderRadius:6,height:`${Math.max(3,(v/mx)*90)}px`,background:`linear-gradient(180deg,${chart.color},${chart.color}44)`,position:"relative",transition:"height 0.5s"}}>
+                        {v>0&&<div style={{position:"absolute",top:-16,width:"100%",textAlign:"center",fontSize:9,opacity:0.6,color:chart.color}}>{v}{chart.unit}</div>}
+                      </div>
+                      <span style={{fontSize:8,opacity:0.35,overflow:"hidden",whiteSpace:"nowrap",maxWidth:"100%"}}>{d.day}</span>
+                    </div>;
+                  })}
+                </div>
+                {/* Mini trend line */}
+                {dailyChartData.length>1&&<div style={{marginTop:8,display:"flex",alignItems:"center",gap:6}}>
+                  <svg width="100%" height="30" viewBox={`0 0 ${dailyChartData.length*20} 30`} style={{opacity:0.4}}>
+                    <polyline fill="none" stroke={chart.color} strokeWidth="1.5" strokeLinejoin="round"
+                      points={dailyChartData.map((d,i)=>`${i*20+10},${28-(chart.getData(d)/mx)*26}`).join(" ")}/>
+                    {dailyChartData.map((d,i)=><circle key={i} cx={i*20+10} cy={28-(chart.getData(d)/mx)*26} r="2" fill={chart.color}/>)}
+                  </svg>
+                </div>}
+              </Card>;
+            })}
           </div>
-        </Card>:<Card bg={T.card} style={{textAlign:"center",padding:"40px 20px"}}><div style={{fontSize:32,marginBottom:12}}>📊</div><div style={{fontSize:14,opacity:0.4}}>ยังไม่มีข้อมูล — เริ่ม session แรกเลย!</div></Card>}
+
+          {/* Daily breakdown table */}
+          <Card bg={T.card} style={{marginTop:14}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:12}}>รายละเอียดรายวัน</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:8,marginBottom:8}}>
+              <span style={{fontSize:11,opacity:0.4}}>วัน</span>
+              <span style={{fontSize:11,opacity:0.4,textAlign:"center"}}>⏱ Focus</span>
+              <span style={{fontSize:11,opacity:0.4,textAlign:"center"}}>🔄 Sessions</span>
+              <span style={{fontSize:11,opacity:0.4,textAlign:"center"}}>✅ Tasks</span>
+              <span style={{fontSize:11,opacity:0.4,textAlign:"center"}}>🎯 Habits</span>
+            </div>
+            <div style={{maxHeight:180,overflowY:"auto"}}>
+              {[...dailyChartData].reverse().map((d,i)=>(
+                <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:8,padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",fontSize:12}}>
+                  <span style={{opacity:0.7}}>{d.day}</span>
+                  <span style={{textAlign:"center",color:A}}>{d.focus}m</span>
+                  <span style={{textAlign:"center",color:"#6366f1"}}>{d.sessions}</span>
+                  <span style={{textAlign:"center",color:"#10b981"}}>{d.tasks}</span>
+                  <span style={{textAlign:"center",color:"#f59e0b"}}>{d.habits}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </>:<Card bg={T.card} style={{textAlign:"center",padding:"40px 20px"}}><div style={{fontSize:32,marginBottom:12}}>📊</div><div style={{fontSize:14,opacity:0.4}}>ยังไม่มีข้อมูล — เริ่ม session แรกเลย!</div><div style={{fontSize:12,opacity:0.25,marginTop:8}}>ทำ Pomodoro, ติ๊ก Task, ติ๊ก Habit แล้วกลับมาดูกราฟได้เลย</div></Card>}
       </div>}
 
       {/* PROFILE */}
