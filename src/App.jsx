@@ -268,12 +268,22 @@ export default function App(){
   const[storyOpen,setStoryOpen]=useState(false);
   const[lineIdx,setLineIdx]=useState(0);
   const[workLog,setWorkLog]=useLocalState("workLog",{});
-  // dailyLog: { "2026-03-16": { sessions:2, tasksDone:3, habitsDone:2 }, ... }
+  // dailyLog: { "2026-03-16": { sessions:2, tasksDone:3, habitsDone:2, habitDetail:{"💧 ดื่มน้ำ":1,...} }, ... }
   const[dailyLog,setDailyLog]=useLocalState("dailyLog",{});
   const[mood,setMood]=useState("idle");
   const saveDailyField=(field,value)=>{
     const dk=new Date().toISOString().split("T")[0];
-    setDailyLog(l=>({...l,[dk]:{...(l[dk]||{sessions:0,tasksDone:0,habitsDone:0}),[field]:value}}));
+    setDailyLog(l=>({...l,[dk]:{...(l[dk]||{sessions:0,tasksDone:0,habitsDone:0,habitDetail:{}}),[field]:value}}));
+  };
+  const saveDailyHabitDetail=(habitName,done)=>{
+    const dk=new Date().toISOString().split("T")[0];
+    setDailyLog(l=>{
+      const prev=l[dk]||{sessions:0,tasksDone:0,habitsDone:0,habitDetail:{}};
+      const hd={...(prev.habitDetail||{})};
+      if(done) hd[habitName]=(hd[habitName]||0)+1;
+      else delete hd[habitName];
+      return{...l,[dk]:{...prev,habitDetail:hd}};
+    });
   };
 
   const[userName,setUserName]=useLocalState("userName","User");
@@ -350,6 +360,8 @@ export default function App(){
   // Habit toggle with XP bind/unbind + dailyLog
   const toggleHabit=(id)=>{
     setHabits(prev=>{
+      const target=prev.find(h=>h.id===id);
+      const willBeDone=target&&!target.done;
       const next=prev.map(h=>{
         if(h.id===id){
           if(!h.done){setXp(x=>x+15);} else{setXp(x=>Math.max(0,x-15));}
@@ -358,6 +370,7 @@ export default function App(){
       });
       const doneCount=next.filter(h=>h.done).length;
       saveDailyField("habitsDone",doneCount);
+      if(target) saveDailyHabitDetail(`${target.icon} ${target.name}`,willBeDone);
       return next;
     });
   };
@@ -443,7 +456,27 @@ export default function App(){
             </svg>
           </div>
           <div style={{fontSize:44,fontWeight:300,letterSpacing:3,fontVariantNumeric:"tabular-nums",marginBottom:18}}>{fmt(time)}</div>
-          <button onClick={()=>{if(!running)setMood("working");setRunning(!running);}} style={{width:"100%",maxWidth:260,padding:"12px 0",borderRadius:13,background:running?`${A}25`:A,border:`1.5px solid ${running?`${A}66`:A}`,color:running?A:"#fff",fontSize:15,fontWeight:600}}>{running?"Pause session":"Start session"}</button>
+          <div style={{display:"flex",gap:8,width:"100%",maxWidth:260}}>
+            <button onClick={()=>{if(!running)setMood("working");setRunning(!running);}} style={{flex:1,padding:"12px 0",borderRadius:13,background:running?`${A}25`:A,border:`1.5px solid ${running?`${A}66`:A}`,color:running?A:"#fff",fontSize:15,fontWeight:600}}>{running?"Pause":"Start session"}</button>
+            {/* Done Early — only show when timer has progressed in work mode */}
+            {mode==="work"&&time<workMin*60&&<button onClick={()=>{
+              setRunning(false);
+              const elapsedSec=workMin*60-time;
+              const elapsedMin=Math.max(1,Math.round(elapsedSec/60));
+              const earnedXp=Math.round(elapsedMin*2);
+              setXp(x=>x+earnedXp);
+              setSessions(s=>{const nv=s+1;saveDailyField("sessions",nv);return nv;});
+              const d=new Date().toISOString().split("T")[0];
+              setWorkLog(l=>({...l,[d]:(l[d]||0)+elapsedMin}));
+              setMood("happy");
+              if(notifSound)playTimerSound(timerSound);
+              setMode("break");setTime(breakMin*60);
+            }} style={{padding:"12px 16px",borderRadius:13,background:"rgba(16,185,129,0.15)",border:"1.5px solid rgba(16,185,129,0.4)",color:"#10b981",fontSize:13,fontWeight:600,whiteSpace:"nowrap"}}>Done ✓</button>}
+          </div>
+          {/* Show elapsed info when timer is running or paused mid-session */}
+          {mode==="work"&&time<workMin*60&&<div style={{marginTop:8,fontSize:11,opacity:0.4,textAlign:"center"}}>
+            ทำไปแล้ว {Math.round((workMin*60-time)/60)} นาที · กด Done ✓ เพื่อจบก่อนเวลา (+{Math.round(Math.max(1,Math.round((workMin*60-time)/60))*2)} XP)
+          </div>}
           <div style={{display:"flex",gap:12,marginTop:14,fontSize:12,alignItems:"center"}}>
             <div style={{display:"flex",alignItems:"center",gap:4}}><button onClick={cycleWorkDown} style={{width:22,height:22,borderRadius:6,background:"rgba(255,255,255,0.06)",border:"none",color:"rgba(255,255,255,0.5)",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button><span style={{opacity:0.6,minWidth:56,textAlign:"center"}}>Work:{workMin}m</span><button onClick={cycleWorkUp} style={{width:22,height:22,borderRadius:6,background:"rgba(255,255,255,0.06)",border:"none",color:"rgba(255,255,255,0.5)",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button></div>
             <div style={{display:"flex",alignItems:"center",gap:4}}><button onClick={cycleBreakDown} style={{width:22,height:22,borderRadius:6,background:"rgba(255,255,255,0.06)",border:"none",color:"rgba(255,255,255,0.5)",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button><span style={{opacity:0.6,minWidth:56,textAlign:"center"}}>Break:{breakMin}m</span><button onClick={cycleBreakUp} style={{width:22,height:22,borderRadius:6,background:"rgba(255,255,255,0.06)",border:"none",color:"rgba(255,255,255,0.5)",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button></div>
@@ -595,6 +628,33 @@ export default function App(){
               ))}
             </div>
           </Card>
+
+          {/* Habit Breakdown — which habits done most/least */}
+          {(()=>{
+            // Aggregate habitDetail across period
+            const habitCounts={};
+            periodDays.forEach(dk=>{
+              const hd=(dailyLog[dk]||{}).habitDetail||{};
+              Object.entries(hd).forEach(([name,count])=>{habitCounts[name]=(habitCounts[name]||0)+count;});
+            });
+            const sorted=Object.entries(habitCounts).sort((a,b)=>b[1]-a[1]);
+            const maxC=sorted.length>0?sorted[0][1]:1;
+            if(sorted.length===0)return null;
+            return <Card bg={T.card} style={{marginTop:14}}>
+              <div style={{fontSize:15,fontWeight:700,marginBottom:14}}>🎯 Habit ที่ทำบ่อยที่สุด</div>
+              {sorted.map(([name,count],i)=>(
+                <div key={name} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                  <span style={{fontSize:13,minWidth:110,opacity:0.8}}>{name}</span>
+                  <div style={{flex:1,height:20,borderRadius:6,background:"rgba(255,255,255,0.04)",overflow:"hidden",position:"relative"}}>
+                    <div style={{height:"100%",borderRadius:6,width:`${(count/maxC)*100}%`,background:i===0?`linear-gradient(90deg,#f59e0b,#f59e0baa)`:i===1?`linear-gradient(90deg,#f59e0b88,#f59e0b55)`:`linear-gradient(90deg,#f59e0b55,#f59e0b22)`,transition:"width 0.5s",display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:8}}>
+                      <span style={{fontSize:11,fontWeight:700,color:i<2?"#fff":"#f59e0b"}}>{count}</span>
+                    </div>
+                  </div>
+                  {i===0&&<span style={{fontSize:14}}>👑</span>}
+                </div>
+              ))}
+            </Card>;
+          })()}
         </>:<Card bg={T.card} style={{textAlign:"center",padding:"40px 20px"}}><div style={{fontSize:32,marginBottom:12}}>📊</div><div style={{fontSize:14,opacity:0.4}}>ยังไม่มีข้อมูล — เริ่ม session แรกเลย!</div><div style={{fontSize:12,opacity:0.25,marginTop:8}}>ทำ Pomodoro, ติ๊ก Task, ติ๊ก Habit แล้วกลับมาดูกราฟได้เลย</div></Card>}
       </div>}
 
