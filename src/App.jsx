@@ -224,24 +224,34 @@ function useAudioEngine(){
   return{startMusic,stopMusic,startAmbient,stopAmbient,playTimerSound};
 }
 
+/* ═══ localStorage helper ═══ */
+function useLocalState(key, initial) {
+  const[val,setVal]=useState(()=>{
+    try{const s=localStorage.getItem("chill_"+key);return s!==null?JSON.parse(s):initial;}
+    catch{return initial;}
+  });
+  useEffect(()=>{try{localStorage.setItem("chill_"+key,JSON.stringify(val));}catch{}},[key,val]);
+  return[val,setVal];
+}
+
 /* ═══ MAIN APP ═══ */
 export default function App(){
   const[nav,setNav]=useState("Home");
   const[mode,setMode]=useState("work");
-  const[workMin,setWorkMin]=useState(25);
-  const[breakMin,setBreakMin]=useState(5);
-  const[time,setTime]=useState(25*60);
+  const[workMin,setWorkMin]=useLocalState("workMin",25);
+  const[breakMin,setBreakMin]=useLocalState("breakMin",5);
+  const[time,setTime]=useState(()=>{try{const w=localStorage.getItem("chill_workMin");return w?JSON.parse(w)*60:25*60;}catch{return 25*60;}});
   const[running,setRunning]=useState(false);
-  const[sessions,setSessions]=useState(0);
-  const[rounds,setRounds]=useState(4);
+  const[sessions,setSessions]=useLocalState("sessions_"+new Date().toISOString().split("T")[0],0);
+  const[rounds,setRounds]=useLocalState("rounds",4);
   const timerRef=useRef(null);
 
-  const[todos,setTodos]=useState([{id:1,text:"Design",done:false},{id:2,text:"Web development",done:false},{id:3,text:"Social media content",done:false}]);
+  const[todos,setTodos]=useLocalState("todos",[{id:1,text:"Design",done:false},{id:2,text:"Web development",done:false},{id:3,text:"Social media content",done:false}]);
   const[newTodo,setNewTodo]=useState("");
   const[showAddTask,setShowAddTask]=useState(false);
-  const[tasksDoneToday,setTasksDoneToday]=useState(0);
+  const[tasksDoneToday,setTasksDoneToday]=useLocalState("tasksDone_"+new Date().toISOString().split("T")[0],0);
 
-  const[habits,setHabits]=useState([{id:1,name:"ดื่มน้ำ",icon:"💧",done:false},{id:2,name:"ยืดเส้น",icon:"🧘",done:false},{id:3,name:"อ่านหนังสือ",icon:"📖",done:false},{id:4,name:"นั่งสมาธิ",icon:"🧠",done:false}]);
+  const[habits,setHabits]=useLocalState("habits",[{id:1,name:"ดื่มน้ำ",icon:"💧",done:false},{id:2,name:"ยืดเส้น",icon:"🧘",done:false},{id:3,name:"อ่านหนังสือ",icon:"📖",done:false},{id:4,name:"นั่งสมาธิ",icon:"🧠",done:false}]);
   const[newHabit,setNewHabit]=useState("");
   const[showAddHabit,setShowAddHabit]=useState(false);
 
@@ -252,22 +262,22 @@ export default function App(){
   const[showAmb,setShowAmb]=useState(false);
   const[showAllTracks,setShowAllTracks]=useState(false);
 
-  const[xp,setXp]=useState(0);
+  const[xp,setXp]=useLocalState("xp",0);
   const level=Math.floor(xp/150)+1;const xpNext=level*150;
 
   const[storyOpen,setStoryOpen]=useState(false);
   const[lineIdx,setLineIdx]=useState(0);
-  const[workLog,setWorkLog]=useState({});
+  const[workLog,setWorkLog]=useLocalState("workLog",{});
   const[mood,setMood]=useState("idle");
 
-  const[userName,setUserName]=useState("User");
-  const[notifSound,setNotifSound]=useState(true);
-  const[autoBreak,setAutoBreak]=useState(true);
-  const[selTheme,setSelTheme]=useState("dark");
-  const[selAccent,setSelAccent]=useState("#c9463d");
+  const[userName,setUserName]=useLocalState("userName","User");
+  const[notifSound,setNotifSound]=useLocalState("notifSound",true);
+  const[autoBreak,setAutoBreak]=useLocalState("autoBreak",true);
+  const[selTheme,setSelTheme]=useLocalState("selTheme","dark");
+  const[selAccent,setSelAccent]=useLocalState("selAccent","#c9463d");
   const[statsPeriod,setStatsPeriod]=useState("Week");
-  const[timerSound,setTimerSound]=useState("bell");
-  const[dailyGoal,setDailyGoal]=useState(8);
+  const[timerSound,setTimerSound]=useLocalState("timerSound","bell");
+  const[dailyGoal,setDailyGoal]=useLocalState("dailyGoal",8);
 
   const T=THEMES[selTheme]||THEMES.dark;
   const A=selAccent;
