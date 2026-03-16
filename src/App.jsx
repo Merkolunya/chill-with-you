@@ -469,21 +469,19 @@ export default function App(){
         <div style={{display:"flex",gap:14}}>
           <Card bg={T.card} style={{flex:1,display:"flex",flexDirection:"column"}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}><span style={{fontSize:16,fontWeight:700}}>Music</span>
-              <div style={{display:"flex",gap:4}}>
-                <button onClick={()=>setShowAllTracks(!showAllTracks)} style={{width:26,height:26,borderRadius:7,background:`${A}20`,border:`1px solid ${A}33`,color:A,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center"}}>🎵</button>
-                <button onClick={()=>setShowAmb(!showAmb)} style={{width:26,height:26,borderRadius:7,background:`${A}20`,border:`1px solid ${A}33`,color:A,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center"}}>🌿</button>
-              </div>
+              <button onClick={()=>setShowAmb(!showAmb)} style={{width:26,height:26,borderRadius:7,background:`${A}20`,border:`1px solid ${A}33`,color:A,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center"}}>{showAmb?"✕":"🌿"}</button>
             </div>
             <div style={{fontSize:13,fontWeight:500}}>{track.name}</div>
             <div style={{fontSize:11,opacity:0.4,marginBottom:12}}>{track.artist} · {track.bpm}bpm · {track.wave}</div>
             <div style={{height:3,borderRadius:2,background:"rgba(255,255,255,0.08)",marginBottom:14,overflow:"hidden"}}><div style={{height:"100%",width:`${mProg}%`,background:`linear-gradient(90deg,${A},${A}88)`,transition:"width 0.3s"}}/></div>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:14}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:14,marginBottom:10}}>
               <button onClick={doPrev} style={{background:"none",border:"none",color:"rgba(255,255,255,0.4)",fontSize:14}}>⏮</button>
               <button onClick={togglePlay} style={{width:36,height:36,borderRadius:"50%",background:A,border:"none",color:"#fff",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>{playing?"⏸":"▶"}</button>
               <button onClick={doNext} style={{background:"none",border:"none",color:"rgba(255,255,255,0.4)",fontSize:14}}>⏭</button>
             </div>
-            {playing&&<div style={{textAlign:"center",marginTop:6,fontSize:10,color:A,opacity:0.7}}>♪ กำลังเล่น Lo-Fi...</div>}
-            {showAllTracks&&<div style={{marginTop:10,maxHeight:160,overflowY:"auto"}}>{TRACKS.map(t=><div key={t.id} onClick={()=>doChangeTrack(t)} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",borderRadius:6,cursor:"pointer",background:track.id===t.id?`${A}15`:"transparent",fontSize:12,marginBottom:2}}><span style={{opacity:track.id===t.id?1:0.4}}>{track.id===t.id&&playing?"▶":"♪"}</span><span style={{flex:1,opacity:track.id===t.id?1:0.7}}>{t.name}</span><span style={{opacity:0.3,fontSize:10}}>{t.bpm}bpm</span></div>)}</div>}
+            {playing&&<div style={{textAlign:"center",marginBottom:8,fontSize:10,color:A,opacity:0.7}}>♪ กำลังเล่น Lo-Fi...</div>}
+            {/* Track list — always visible */}
+            <div style={{maxHeight:200,overflowY:"auto",borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:8}}>{TRACKS.map(t=><div key={t.id} onClick={()=>doChangeTrack(t)} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",borderRadius:6,cursor:"pointer",background:track.id===t.id?`${A}15`:"transparent",fontSize:12,marginBottom:2,transition:"background 0.15s"}}><span style={{opacity:track.id===t.id?1:0.4,fontSize:11}}>{track.id===t.id&&playing?"▶":"♪"}</span><span style={{flex:1,opacity:track.id===t.id?1:0.6}}>{t.name}</span><span style={{opacity:0.3,fontSize:10}}>{t.bpm}bpm</span></div>)}</div>
             {showAmb&&<div style={{marginTop:10}}><div style={{fontSize:11,opacity:0.4,marginBottom:6}}>Ambient Sounds</div><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:5}}>{AMBIENT_DEFS.map(a=><button key={a.id} onClick={()=>toggleAmbient(a)} style={{padding:"6px 3px",borderRadius:8,fontSize:11,background:ambients[a.id]?`${A}20`:"rgba(255,255,255,0.03)",border:ambients[a.id]?`1px solid ${A}40`:"1px solid rgba(255,255,255,0.06)",color:T.text,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:14}}>{a.icon}</span>{a.name}{ambients[a.id]&&<span style={{fontSize:8,color:A}}>ON</span>}</button>)}</div></div>}
           </Card>
           <Card bg={T.card} style={{flex:1,display:"flex",flexDirection:"column"}}>
