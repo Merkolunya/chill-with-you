@@ -251,8 +251,14 @@ export default function App(){
   const[showAddTask,setShowAddTask]=useState(false);
   const[tasksDoneToday,setTasksDoneToday]=useLocalState("tasksDone_"+new Date().toISOString().split("T")[0],0);
 
-  const[habits,setHabits]=useLocalState("habits",[{id:1,name:"ดื่มน้ำ",icon:"💧",done:false},{id:2,name:"ยืดเส้น",icon:"🧘",done:false},{id:3,name:"อ่านหนังสือ",icon:"📖",done:false},{id:4,name:"นั่งสมาธิ",icon:"🧠",done:false}]);
+  const[habits,setHabits]=useLocalState("habits",[
+    {id:1,name:"ดื่มน้ำ",icon:"💧",done:false,target:8,current:0},
+    {id:2,name:"ยืดเส้น",icon:"🧘",done:false,target:0,current:0},
+    {id:3,name:"อ่านหนังสือ",icon:"📖",done:false,target:0,current:0},
+    {id:4,name:"นั่งสมาธิ",icon:"🧠",done:false,target:0,current:0},
+  ]);
   const[newHabit,setNewHabit]=useState("");
+  const[newHabitTarget,setNewHabitTarget]=useState(0);
   const[showAddHabit,setShowAddHabit]=useState(false);
 
   const[track,setTrack]=useState(TRACKS[0]);
@@ -342,7 +348,7 @@ export default function App(){
   const totalSec=mode==="work"?workMin*60:breakMin*60;
   const handAngle=((totalSec-time)/totalSec)*360;
   const addTodo=()=>{if(!newTodo.trim())return;setTodos([...todos,{id:Date.now(),text:newTodo.trim(),done:false}]);setNewTodo("");setShowAddTask(false);};
-  const addHabit=()=>{if(!newHabit.trim())return;setHabits([...habits,{id:Date.now(),name:newHabit.trim(),icon:"✨",done:false}]);setNewHabit("");setShowAddHabit(false);};
+  const addHabit=()=>{if(!newHabit.trim())return;setHabits([...habits,{id:Date.now(),name:newHabit.trim(),icon:"✨",done:false,target:newHabitTarget||0,current:0}]);setNewHabit("");setNewHabitTarget(0);setShowAddHabit(false);};
 
   // Task toggle with XP bind/unbind + dailyLog
   const toggleTask=(id)=>{
@@ -357,20 +363,39 @@ export default function App(){
       return next;
     });
   };
-  // Habit toggle with XP bind/unbind + dailyLog
+  // Habit toggle — for simple habits (no target)
   const toggleHabit=(id)=>{
     setHabits(prev=>{
       const target=prev.find(h=>h.id===id);
-      const willBeDone=target&&!target.done;
+      if(!target)return prev;
+      // If has target, don't use simple toggle
+      if(target.target>0)return prev;
+      const willBeDone=!target.done;
       const next=prev.map(h=>{
         if(h.id===id){
-          if(!h.done){setXp(x=>x+15);} else{setXp(x=>Math.max(0,x-15));}
-          return{...h,done:!h.done};
+          if(willBeDone){setXp(x=>x+15);} else{setXp(x=>Math.max(0,x-15));}
+          return{...h,done:willBeDone};
         }return h;
       });
       const doneCount=next.filter(h=>h.done).length;
       saveDailyField("habitsDone",doneCount);
-      if(target) saveDailyHabitDetail(`${target.icon} ${target.name}`,willBeDone);
+      saveDailyHabitDetail(`${target.icon} ${target.name}`,willBeDone);
+      return next;
+    });
+  };
+  // Increment/decrement for target-based habits (e.g. water 8 glasses)
+  const incrementHabit=(id,delta)=>{
+    setHabits(prev=>{
+      const target=prev.find(h=>h.id===id);
+      if(!target)return prev;
+      const newCurrent=Math.max(0,Math.min(target.target,(target.current||0)+delta));
+      const wasDone=target.done;
+      const nowDone=newCurrent>=target.target;
+      // XP: give 15 when first reaching target, remove 15 when going below
+      if(nowDone&&!wasDone){setXp(x=>x+15);saveDailyHabitDetail(`${target.icon} ${target.name}`,true);}
+      if(!nowDone&&wasDone){setXp(x=>Math.max(0,x-15));saveDailyHabitDetail(`${target.icon} ${target.name}`,false);}
+      const next=prev.map(h=>h.id===id?{...h,current:newCurrent,done:nowDone}:h);
+      saveDailyField("habitsDone",next.filter(h=>h.done).length);
       return next;
     });
   };
@@ -538,15 +563,66 @@ export default function App(){
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <Card bg={T.card}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}><span style={{fontSize:16,fontWeight:700}}>Daily Habits</span><button onClick={()=>setShowAddHabit(!showAddHabit)} style={{width:26,height:26,borderRadius:7,background:`${A}20`,border:`1px solid ${A}33`,color:A,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button></div>
-            {showAddHabit&&<div style={{display:"flex",gap:5,marginBottom:8}}><input value={newHabit} onChange={e=>setNewHabit(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addHabit()} placeholder="เพิ่ม habit..." autoFocus style={{flex:1,padding:"7px 10px",borderRadius:8,fontSize:12,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:T.text,outline:"none"}}/><button onClick={addHabit} style={{padding:"7px 10px",borderRadius:8,background:A,border:"none",color:"#fff",fontSize:12,fontWeight:600}}>Add</button></div>}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
-              {habits.map(h=><div key={h.id} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 10px",borderRadius:10,fontSize:12,background:h.done?`${A}18`:"rgba(255,255,255,0.03)",border:h.done?`1.5px solid ${A}40`:"1.5px solid rgba(255,255,255,0.05)"}}>
-                <span style={{cursor:"pointer"}} onClick={()=>toggleHabit(h.id)}>{h.icon}</span>
-                <span style={{flex:1,opacity:h.done?0.5:0.8,cursor:"pointer"}} onClick={()=>toggleHabit(h.id)}>{h.name}</span>
-                {h.done&&<span style={{color:A,fontSize:11}}>✓</span>}
-                <button onClick={()=>setHabits(habits.filter(x=>x.id!==h.id))} style={{background:"none",border:"none",color:"rgba(255,255,255,0.15)",fontSize:10}}>✕</button>
-              </div>)}
+            {showAddHabit&&<div style={{marginBottom:10}}>
+              <div style={{display:"flex",gap:5,marginBottom:6}}><input value={newHabit} onChange={e=>setNewHabit(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addHabit()} placeholder="ชื่อ habit..." autoFocus style={{flex:1,padding:"7px 10px",borderRadius:8,fontSize:12,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:T.text,outline:"none"}}/><button onClick={addHabit} style={{padding:"7px 10px",borderRadius:8,background:A,border:"none",color:"#fff",fontSize:12,fontWeight:600}}>Add</button></div>
+              <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,opacity:0.5}}>
+                <span>เป้าหมาย:</span>
+                <input type="number" min="0" value={newHabitTarget} onChange={e=>setNewHabitTarget(parseInt(e.target.value)||0)} style={{width:50,padding:"4px 6px",borderRadius:6,fontSize:11,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:T.text,outline:"none",textAlign:"center"}}/>
+                <span style={{opacity:0.6}}>(0 = ติ๊กเสร็จ/ไม่เสร็จ)</span>
+              </div>
+            </div>}
+            <div style={{display:"flex",flexDirection:"column",gap:5}}>
+              {habits.map(h=>{
+                const hasTarget=h.target>0;
+                const pct=hasTarget?Math.min(((h.current||0)/h.target)*100,100):0;
+                return <div key={h.id} style={{padding:"10px 12px",borderRadius:12,fontSize:12,background:h.done?`${A}18`:"rgba(255,255,255,0.03)",border:h.done?`1.5px solid ${A}40`:"1.5px solid rgba(255,255,255,0.05)"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    {/* Icon + Name */}
+                    {!hasTarget?<span style={{cursor:"pointer"}} onClick={()=>toggleHabit(h.id)}>{h.icon}</span>:<span>{h.icon}</span>}
+                    <span style={{flex:1,opacity:h.done?0.5:0.8,...(!hasTarget&&{cursor:"pointer"})}} onClick={()=>!hasTarget&&toggleHabit(h.id)}>{h.name}</span>
+                    {/* Simple habit: checkmark */}
+                    {!hasTarget&&h.done&&<span style={{color:A,fontSize:11}}>✓</span>}
+                    {/* Target habit: counter buttons */}
+                    {hasTarget&&<div style={{display:"flex",alignItems:"center",gap:4}}>
+                      <button onClick={()=>incrementHabit(h.id,-1)} style={{width:20,height:20,borderRadius:5,background:"rgba(255,255,255,0.06)",border:"none",color:"rgba(255,255,255,0.5)",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+                      <span style={{fontSize:13,fontWeight:700,color:h.done?A:T.text,minWidth:36,textAlign:"center"}}>{h.current||0}/{h.target}</span>
+                      <button onClick={()=>incrementHabit(h.id,1)} style={{width:20,height:20,borderRadius:5,background:`${A}20`,border:`1px solid ${A}33`,color:A,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+                    </div>}
+                    {/* Delete */}
+                    <button onClick={()=>setHabits(habits.filter(x=>x.id!==h.id))} style={{background:"none",border:"none",color:"rgba(255,255,255,0.15)",fontSize:10,marginLeft:4}}>✕</button>
+                  </div>
+                  {/* Progress bar for target habits */}
+                  {hasTarget&&<div style={{marginTop:6,height:4,borderRadius:2,background:"rgba(255,255,255,0.06)",overflow:"hidden"}}>
+                    <div style={{height:"100%",borderRadius:2,width:`${pct}%`,background:h.done?A:`${A}88`,transition:"width 0.3s"}}/>
+                  </div>}
+                </div>;
+              })}
             </div>
+            {/* Habit frequency mini-chart — all-time breakdown */}
+            {(()=>{
+              const allHabitCounts={};
+              Object.values(dailyLog).forEach(dl=>{
+                const hd=dl.habitDetail||{};
+                Object.entries(hd).forEach(([name,count])=>{allHabitCounts[name]=(allHabitCounts[name]||0)+count;});
+              });
+              const sorted=Object.entries(allHabitCounts).sort((a,b)=>b[1]-a[1]);
+              const maxC=sorted.length>0?sorted[0][1]:1;
+              if(sorted.length===0) return <div style={{marginTop:10,fontSize:10,opacity:0.25,textAlign:"center"}}>ติ๊ก habit แล้วจะเห็นสถิติตรงนี้</div>;
+              return <div style={{marginTop:12,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10}}>
+                <div style={{fontSize:11,fontWeight:600,opacity:0.5,marginBottom:8}}>📊 สถิติสะสม</div>
+                {sorted.map(([name,count],i)=>(
+                  <div key={name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                    <span style={{fontSize:11,minWidth:80,opacity:0.7,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</span>
+                    <div style={{flex:1,height:14,borderRadius:4,background:"rgba(255,255,255,0.04)",overflow:"hidden"}}>
+                      <div style={{height:"100%",borderRadius:4,width:`${(count/maxC)*100}%`,background:i===0?`${A}`:`${A}${i===1?"88":"44"}`,display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:4,transition:"width 0.5s"}}>
+                        {count>0&&<span style={{fontSize:9,fontWeight:700,color:"#fff"}}>{count}×</span>}
+                      </div>
+                    </div>
+                    {i===0&&<span style={{fontSize:10}}>🏆</span>}
+                  </div>
+                ))}
+              </div>;
+            })()}
           </Card>
           <Card bg={T.card} style={{flex:1}}>
             <div style={{fontSize:16,fontWeight:700,marginBottom:14}}>Progress</div>
